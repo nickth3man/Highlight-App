@@ -1,12 +1,16 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import threading
-import webbrowser
 import os
 from datetime import datetime
 from typing import List, Dict, Any
 import requests
 from bs4 import BeautifulSoup # type: ignore
+import asyncio
+import nest_asyncio
+import webbrowser
+from PyQt5 import QtWidgets, QtCore
+from PyQt5.QtWidgets import QMainWindow, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem, QMessageBox
+from PyQt5.QtGui import QPainter, QBrush, QPen, QColor
+from PyQt5.QtCore import Qt, QSize
+nest_asyncio.apply()  # Allow nested event loops
 
 # Load environment variables
 try:
@@ -35,17 +39,10 @@ try:
     # Debug: Print actual loaded environment variables
     print("\nActual loaded environment variables:")
     youtube_key = os.environ.get('YOUTUBE_API_KEY', '')
-    twitter_key = os.environ.get('TWITTER_API_KEY', '')
     print(f"YOUTUBE_API_KEY: {youtube_key[:10]}..." if youtube_key else "YOUTUBE_API_KEY: Not found")
-    print(f"TWITTER_API_KEY: {twitter_key[:10]}..." if twitter_key else "TWITTER_API_KEY: Not found")
     
     # Verify that required environment variables are set
     required_vars = [
-        'TWITTER_API_KEY',
-        'TWITTER_API_SECRET',
-        'TWITTER_BEARER_TOKEN',
-        'TWITTER_ACCESS_TOKEN',
-        'TWITTER_ACCESS_TOKEN_SECRET',
         'YOUTUBE_API_KEY'
     ]
     
@@ -63,7 +60,8 @@ except ImportError:
 # Optional imports with error handling
 APIS_AVAILABLE = {
     'youtube': False,
-    'twitter': False,
+    'nitter': False,
+    'twscrape': False,
     'reddit': False,
     'spacy': False,
     'transformers': False
@@ -76,80 +74,81 @@ except ImportError:
     print("YouTube API not available. Install with: pip install google-api-python-client")
 
 try:
-    import tweepy
-    APIS_AVAILABLE['twitter'] = True
+    import aiohttp
+    import asyncio
+    from bs4 import BeautifulSoup
+    APIS_AVAILABLE['nitter'] = True
 except ImportError:
-    print("Installing tweepy...")
-    os.system('pip install tweepy')
-    import tweepy
-    APIS_AVAILABLE['twitter'] = True
+    print("Installing aiohttp...")
+    os.system('pip install aiohttp')
+    import aiohttp
+    APIS_AVAILABLE['nitter'] = True
+
+try:
+    from twscrape import API, gather
+    from twscrape.logger import set_log_level
+    APIS_AVAILABLE['twscrape'] = True
+except ImportError:
+    print("Installing twscrape...")
+    os.system('pip install twscrape')
+    from twscrape import API, gather
+    from twscrape.logger import set_log_level
+    APIS_AVAILABLE['twscrape'] = True
+
+from isodate import parse_duration
 
 class APIKeys:
     """Manages API keys from environment variables"""
     def __init__(self):
-        # Twitter credentials are now set from environment variables
-        self.twitter_api_key = os.getenv('TWITTER_API_KEY')
-        self.twitter_api_secret = os.getenv('TWITTER_API_SECRET')
-        self.twitter_bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
-        self.twitter_access_token = os.getenv('TWITTER_ACCESS_TOKEN')
-        self.twitter_access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
-        
-        # Other API keys (if you add them later)
+        # Only YouTube keys are needed now
         self.youtube_key = os.getenv('YOUTUBE_API_KEY')
         self.reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
         self.reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
         self.reddit_user_agent = os.getenv('REDDIT_USER_AGENT', 'HighlightApp/1.0')
+        
+        # Nitter instance URL
+        self.nitter_instance = os.getenv('NITTER_INSTANCE', 'https://nitter.net')
 
         # Debug information
         print("\nAPI Keys Debug Information:")
         print(f"YouTube API Key: {self.youtube_key[:10]}..." if self.youtube_key else "YouTube API Key: None")
-        print(f"Twitter API Key: {self.twitter_api_key[:10]}..." if self.twitter_api_key else "Twitter API Key: None")
+        print(f"Nitter Instance: {self.nitter_instance}")
         
         # Verify keys are not empty
         if not self.youtube_key or self.youtube_key.startswith('your_'):
             print("Warning: YouTube API key is missing or invalid")
-        if not self.twitter_api_key or self.twitter_api_key.startswith('your_'):
-            print("Warning: Twitter API key is missing or invalid")
 
 class HighlightSearcher:
     """Handles searching across different platforms"""
     def __init__(self):
         self.api_keys = APIKeys()
         self.clients = {}
-        self.last_error = None  # Add this attribute to store the last error
-        self._initialize_clients()
+        self.last_error = None
+        self._initialize_youtube_client()  # Directly initialize YouTube client
 
-    def _initialize_clients(self):
-        """Initialize API clients with error handling"""
-        self._initialize_twitter_client()
-        self._initialize_youtube_client()
+    def search(self, query: str, max_results: int = 100) -> List[Dict[str, Any]]:
+        """Search YouTube for basketball videos with enhanced metadata"""
+        results = []
+        self.last_error = None
+        print(f"Starting search for: {query}")
 
-    def _initialize_twitter_client(self):
-        """Initialize Twitter client with error handling"""
-        if APIS_AVAILABLE['twitter'] and self.api_keys.twitter_api_key:
+        # YouTube search
+        if 'youtube' in self.clients:
             try:
-                auth = tweepy.OAuthHandler(
-                    self.api_keys.twitter_api_key,
-                    self.api_keys.twitter_api_secret
-                )
-                auth.set_access_token(
-                    self.api_keys.twitter_access_token,
-                    self.api_keys.twitter_access_token_secret
-                )
-                self.clients['twitter'] = tweepy.API(auth, wait_on_rate_limit=True)
-                self._test_twitter_credentials()
+                youtube_results = self._search_youtube(query, max_results)
+                results.extend(youtube_results)
+                print(f"Found {len(youtube_results)} YouTube results")
             except Exception as e:
-                print(f"Failed to initialize Twitter client: {e}")
-                print("Twitter functionality will be disabled")
+                print(f"YouTube search error: {e}")
+                self.last_error = str(e)
+        else:
+            print("YouTube client not initialized, skipping YouTube search.")
 
-    def _test_twitter_credentials(self):
-        """Test Twitter credentials"""
-        try:
-            self.clients['twitter'].verify_credentials()
-            print("Twitter authentication successful!")
-        except tweepy.errors.Unauthorized:
-            print("Twitter authentication failed - invalid credentials")
-            del self.clients['twitter']
+        # Ensure at least 50 results
+        if len(results) < 50:
+            print("Less than 50 results found, consider broadening your search query.")
+
+        return results
 
     def _initialize_youtube_client(self):
         """Initialize YouTube client with error handling"""
@@ -187,350 +186,226 @@ class HighlightSearcher:
                 print(f"YouTube API key invalid or missing. Key starts with: {self.api_keys.youtube_key[:5]}")
             del self.clients['youtube']
 
-    def search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-        """Aggregate search results from all available platforms"""
-        results = []
-        self.last_error = None  # Reset last error before starting a new search
-        
-        # Twitter search with enhanced error handling
-        if 'twitter' in self.clients:
-            try:
-                twitter_results = self._search_twitter(query, max_results)
-                print(f"Found {len(twitter_results)} Twitter results")
-                results.extend(twitter_results)
-            except Exception as e:
-                self.last_error = e
-                print(f"Twitter search error: {e}")
-        
-        # YouTube search
-        if 'youtube' in self.clients:
-            try:
-                youtube_results = self._search_youtube(query, max_results)
-                print(f"Found {len(youtube_results)} YouTube results")
-                results.extend(youtube_results)
-            except Exception as e:
-                self.last_error = e
-                print(f"YouTube search error: {e}")
-        
-        # Reddit search
-        if 'reddit' in self.clients:
-            try:
-                reddit_results = self._search_reddit(query, max_results)
-                print(f"Found {len(reddit_results)} Reddit results")
-                results.extend(reddit_results)
-            except Exception as e:
-                self.last_error = e
-                print(f"Reddit search error: {e}")
-
-        return self._sort_results(results)
-
-    def _search_twitter(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """
-        Search Twitter for basketball highlights with enhanced functionality
-        """
-        results = []
-        try:
-            # Using Twitter API v1.1 search
-            search_query = f"{query} basketball highlights filter:videos lang:en"
-            tweets = self.clients['twitter'].search_tweets(
-                q=search_query,
-                count=max_results * 2,  # Request more to account for filtering
-                tweet_mode="extended",
-                result_type="recent"
-            )
-            
-            for tweet in tweets:
-                # Extract media URLs
-                media = tweet.entities.get('media', [])
-                urls = tweet.entities.get('urls', [])
-                
-                # Get the best available URL
-                video_url = None
-                if (media):
-                    video_url = media[0].get('expanded_url')
-                elif (urls):
-                    video_url = urls[0].get('expanded_url')
-                
-                if (video_url):
-                    results.append({
-                        "platform": "Twitter",
-                        "title": tweet.full_text[:100] + "...",  # Truncate long tweets
-                        "url": video_url,
-                        "upload_date": tweet.created_at.isoformat(),
-                        "score": tweet.favorite_count + tweet.retweet_count  # Rank by engagement
-                    })
-                
-                if (len(results) >= max_results):
-                    break
-                    
-        except tweepy.errors.TweepyException as e:  # Changed to TweepyException
-            self.last_error = e  # Store the last error
-            print(f"Twitter API error: {e}")
-            if "Rate limit exceeded" in str(e):
-                messagebox.showwarning("Rate Limit", 
-                                     "Twitter rate limit reached. Please try again later.")
-            elif "access level" in str(e):
-                self.last_error = e  # Store the last error
-                return []  # Return an empty list to indicate no results due to access level
-        except Exception as e:
-            self.last_error = e  # Store the last error
-            print(f"Unexpected Twitter error: {e}")
-            
-        return results
-
-    def _scrape_twitter(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """
-        Scrape Twitter for basketball highlights as a fallback
-        """
-        results = []
-        try:
-            search_url = f"https://twitter.com/search?q={query} basketball highlights filter:videos lang:en&src=typed_query"
-            response = requests.get(search_url)
-            response.raise_for_status()  # Raise an error for bad status codes
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Log the response for debugging
-            with open("twitter_search_response.html", "w", encoding="utf-8") as file:
-                file.write(soup.prettify())
-            
-            tweets = soup.find_all('div', {'data-testid': 'tweet'})
-            for tweet in tweets[:max_results]:
-                text = tweet.find('div', {'lang': 'en'}).get_text()
-                video_url = tweet.find('a', {'role': 'link'})['href']
-                video_url = f"https://twitter.com{video_url}"
-                
-                # Check if the tweet contains a video
-                media = tweet.find('div', {'class': 'AdaptiveMedia-video'})
-                if media:
-                    results.append({
-                        "platform": "Twitter",
-                        "title": text[:100] + "...",  # Truncate long tweets
-                        "url": video_url,
-                        "upload_date": datetime.now().isoformat(),  # Use current date as a placeholder
-                        "score": 0  # No engagement data available
-                    })
-                
-                if len(results) >= max_results:
-                    break
-                    
-        except requests.RequestException as e:
-            self.last_error = e  # Store the last error
-            print(f"Twitter scraping error: {e}")
-        except Exception as e:
-            self.last_error = e  # Store the last error
-            print(f"Unexpected error during Twitter scraping: {e}")
-            
-        return results
-
     def _search_youtube(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """Search YouTube for basketball highlights with enhanced metadata"""
+        """Search YouTube for basketball videos with enhanced metadata"""
         results = []
         if 'youtube' not in self.clients:
             print("YouTube search skipped - client not initialized")
             return results
-            
+
+        # Define trusted channels
+        trusted_channels = [
+            "NBA", "House of Highlights", "ESPN", "Bleacher Report",
+            "NBA Reel", "ClutchPoints", "NBA Vintage Highlights", "Throwback Hoops",
+            "Wilton Reports", "Dunkman827", "MaxaMillion711", "Nick Smith NBA"
+        ]
+
         try:
+            print(f"Searching YouTube for: {query}")
             # Search for videos with more metadata
             search_response = self.clients['youtube'].search().list(
-                q=f"{query} basketball highlights",
+                q=query,  # Use the query directly without descriptors
                 part='snippet',
                 type='video',
-                maxResults=max_results,
+                maxResults=100,  # Increase maxResults to 100
                 videoDefinition='high',  # Only HD videos
-                order='date',  # Sort by date
+                order='viewCount',  # Sort by most viewed videos
                 relevanceLanguage='en',  # English results
                 safeSearch='none'  # Allow all content
             ).execute()
-            
+            print(f"YouTube search response: {search_response}")
+
             # Get video IDs for detailed info
             video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
-            
+
             if video_ids:
+                print(f"Found video IDs: {video_ids}")
                 # Get detailed video information
                 videos_response = self.clients['youtube'].videos().list(
-                    part='snippet,statistics',
+                    part='snippet,contentDetails,statistics',
                     id=','.join(video_ids)
                 ).execute()
-                
+                print(f"YouTube videos response: {videos_response}")
+
                 # Create results with more metadata
                 for item in videos_response.get('items', []):
                     stats = item.get('statistics', {})
+                    content_details = item.get('contentDetails', {})
+                    # Parse and format the upload date
+                    upload_date = item['snippet']['publishedAt']
+                    try:
+                        parsed_date = datetime.strptime(upload_date, "%Y-%m-%dT%H:%M:%SZ")
+                        formatted_date = parsed_date.strftime("%Y-%m-%d %H:%M")
+                    except ValueError:
+                        formatted_date = upload_date
+
+                    # Get video duration and convert to HH:MM:SS
+                    duration_iso = content_details.get('duration', 'PT0S')
+                    duration_td = parse_duration(duration_iso)
+                    duration = str(duration_td)
+
+                    # Filter videos with over 50,000 views and duration of at least 1 minute
+                    view_count = int(stats.get('viewCount', 0))
+                    if view_count < 50000:
+                        continue
+
+                    # Ensure video duration is at least 1 minute
+                    if duration_td.total_seconds() < 60:
+                        continue
+
+                    # Filter by trusted channels
+                    channel_title = item['snippet']['channelTitle']
+                    if channel_title not in trusted_channels:
+                        continue
+
                     results.append({
                         "platform": "YouTube",
                         "title": item['snippet']['title'],
+                        "author": channel_title,
                         "url": f"https://www.youtube.com/watch?v={item['id']}",
-                        "upload_date": item['snippet']['publishedAt'],
-                        "score": int(stats.get('viewCount', 0)),  # Use view count as score
+                        "upload_date": formatted_date,
+                        "duration": duration,
+                        "score": view_count,  # Use view count as score
                         "description": item['snippet']['description'],
-                        "views": stats.get('viewCount', 0),
+                        "views": view_count,
                         "likes": stats.get('likeCount', 0)
                     })
-                
+            else:
+                print("No video IDs found in YouTube search response.")
+
         except Exception as e:
             self.last_error = e
             print(f"YouTube API error: {str(e)}")
             if "quota" in str(e).lower():
                 print("YouTube API quota exceeded. Please try again later.")
-            
-        return results
+            elif "key" in str(e).lower():
+                print(f"YouTube API key invalid or missing. Key starts with: {self.api_keys.youtube_key[:5]}")
+            else:
+                print("An unexpected error occurred during YouTube search.")
 
-    def _search_reddit(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """
-        Search Reddit for basketball highlights
-        """
-        results = []
-        try:
-            subreddit = self.clients['reddit'].subreddit("basketball")
-            for submission in subreddit.search(query, limit=max_results):
-                if submission.is_video:
-                    results.append({
-                        "platform": "Reddit",
-                        "title": submission.title,
-                        "url": submission.url,
-                        "upload_date": datetime.fromtimestamp(submission.created_utc).isoformat(),
-                        "score": submission.score
-                    })
-                
-        except Exception as e:
-            self.last_error = e  # Store the last error
-            print(f"Reddit API error: {e}")
-            
         return results
 
     def _sort_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Sort results by score and date"""
-        return sorted(results, 
-                     key=lambda x: (x.get("score", 0), x.get("upload_date", "")), 
-                     reverse=True)
+        """Sort results by highest engagement (views, likes)"""
+        return sorted(results, key=lambda x: (x.get("views", 0) + x.get("likes", 0)), reverse=True)[:100]
 
-class HighlightApp(tk.Tk):
-    """Main application window"""
+class HighlightApp(QMainWindow):
+    """Main application using PyQt5"""
     def __init__(self):
         super().__init__()
-        self.title("Basketball Highlights Aggregator")
-        self.geometry("1000x600")
         self.searcher = HighlightSearcher()
-        self._create_widgets()
-        
-    def _create_widgets(self):
-        """Create and arrange GUI elements"""
-        # Search frame
-        search_frame = ttk.Frame(self, padding="5")
-        search_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Add status label
-        self.status_label = ttk.Label(search_frame, text="Ready to search")
-        self.status_label.pack(side=tk.RIGHT)
-        
-        self.search_entry = ttk.Entry(search_frame, width=50)
-        self.search_entry.pack(side=tk.LEFT, padx=(0, 5))
-        self.search_entry.bind("<Return>", lambda e: self.start_search())
-        
-        # Make sure entry is enabled and focused
-        self.search_entry.config(state='normal')
-        self.search_entry.focus_set()
-        
-        self.search_button = ttk.Button(search_frame, 
-                                      text="Search", 
-                                      command=self.start_search)
-        self.search_button.pack(side=tk.LEFT)
-        
-        # Results tree
-        self.tree = ttk.Treeview(self, columns=("Platform", "Title", "Date", "URL"), 
-                                show="headings")
-        self.tree.heading("Platform", text="Platform")
-        self.tree.heading("Title", text="Title")
-        self.tree.heading("Date", text="Upload Date")
-        self.tree.heading("URL", text="URL")
-        
-        # Column widths
-        self.tree.column("Platform", width=100)
-        self.tree.column("Title", width=400)
-        self.tree.column("Date", width=150)
-        self.tree.column("URL", width=300)
-        
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        
-        # Pack tree and scrollbar
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=5)
-        
-        # Bind double-click
-        self.tree.bind("<Double-1>", self.on_item_double_click)
-        
+        self.init_ui()
+
+    def init_ui(self):
+        """Create the PyQt5 interface"""
+        self.setWindowTitle('Basketball Highlights Aggregator')
+        self.setGeometry(100, 100, 800, 600)
+
+        # Create layout and widgets
+        layout = QVBoxLayout()
+
+        self.search_input = QLineEdit(self)
+        self.search_input.setPlaceholderText('Enter search terms...')
+        layout.addWidget(self.search_input)
+
+        self.search_button = QPushButton("Search", self)
+        self.search_button.clicked.connect(self.start_search)
+        layout.addWidget(self.search_button)
+
+        self.results_table = QTableWidget(self)
+        self.results_table.setColumnCount(5)
+        self.results_table.setHorizontalHeaderLabels(['Platform', 'Posted By', 'Title', 'Duration', 'URL'])
+        layout.addWidget(self.results_table)
+
+        self.status_label = QLabel('', self)
+        layout.addWidget(self.status_label)
+
+        # Set central widget
+        central_widget = QWidget()
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+
     def start_search(self):
-        """Start search in a separate thread"""
-        query = self.search_entry.get().strip()
+        """Handle search button click"""
+        query = self.search_input.text()
         if not query:
-            messagebox.showwarning("Input Required", 
-                                 "Please enter search keywords.")
-            self.search_entry.focus_set()  # Return focus to search entry
+            QMessageBox.warning(self, 'Input Required', 'Please enter a search term')
             return
-            
-        self.search_button.configure(state='disabled')
-        self.search_entry.configure(state='disabled')  # Disable entry during search
-        self.status_label.configure(text="Searching...")
-        self.tree.delete(*self.tree.get_children())
-        
-        threading.Thread(target=self._run_search, 
-                        args=(query,), 
-                        daemon=True).start()
-        
-    def _run_search(self, query: str):
-        """Execute search and update results"""
+
+        # Clear previous results
+        self.results_table.setRowCount(0)
+        self.status_label.setText('Searching...')
+
         try:
-            results = self.searcher.search(query)
+            # Perform search
+            results = self.searcher.search(query, max_results=100)
+
             if not results:
-                # Check if the last error was due to access level
-                if self.searcher.last_error and "access level" in str(self.searcher.last_error):
-                    self.after(0, lambda: messagebox.showerror("Access Level Error", 
-                        "Your Twitter API access level does not allow this operation. "
-                        "Please apply for elevated access."))
-                elif self.searcher.last_error:
-                    self.after(0, lambda: messagebox.showerror("Search Error", 
-                        f"Search failed: {self.searcher.last_error}"))
-                else:
-                    self.after(0, lambda: messagebox.showinfo("No Results", 
-                        "No highlights found. Please try different keywords."))
-            else:
-                self.after(0, self._update_results, results)
+                self.status_label.setText('No highlights found. Please try different keywords.')
+                return
+
+            # Display results
+            self.status_label.setText(f'Found {len(results)} results')
+            self.display_results(results)
+
+            # Generate and save playlist link
+            self.save_playlist_link(query, results)
+
         except Exception as e:
-            self.after(0, self._show_error, str(e))
-        finally:
-            self.after(0, lambda: self.search_button.configure(state='normal'))
-            self.after(0, lambda: self.search_entry.configure(state='normal'))
-            self.after(0, lambda: self.status_label.configure(text="Ready"))
-            self.after(0, lambda: self.search_entry.focus_set())  # Return focus after search
-            
-    def _update_results(self, results: List[Dict[str, Any]]):
-        """Update tree with search results"""
-        for result in results:
-            self.tree.insert("", tk.END, values=(
-                result["platform"],
-                result["title"],
-                result["upload_date"],
-                result["url"]
-            ))
-            
-    def _show_error(self, message: str):
-        """Show error message"""
-        messagebox.showerror("Error", f"Search failed: {message}")
-        
-    def on_item_double_click(self, event):
-        """Handle double-click on result"""
-        selection = self.tree.selection()
-        if selection:
-            item = selection[0]
-            url = self.tree.item(item)["values"][2]  # updated index from 3 to 2
-            webbrowser.open_new_tab(url)
+            QMessageBox.critical(self, 'Error', f'Search failed: {str(e)}')
+            self.status_label.setText('Search failed')
+
+    def save_playlist_link(self, query: str, results: List[Dict[str, Any]]):
+        """Generate a playlist link and save it to a text document"""
+        video_ids = [result['url'].split('=')[-1] for result in results]
+        playlist_link = f"https://www.youtube.com/watch_videos?video_ids={','.join(video_ids)}"
+
+        # Define the file path
+        file_path = os.path.join(r'C:\Users\nickt\Desktop\Highlight App\Videos', f'{query}.txt')
+
+        # Save the playlist link to the file
+        with open(file_path, 'w') as file:
+            file.write(playlist_link)
+
+        print(f"Playlist link saved to {file_path}")
+
+    def display_results(self, results: List[Dict[str, Any]]):
+        """Display search results in the table"""
+        self.results_table.setRowCount(len(results))
+
+        for row, result in enumerate(results):
+            platform = result.get('platform', 'Unknown')
+            posted_by = result.get('author', 'Unknown')
+            title = result.get('content', result.get('title', 'No title'))
+            duration = result.get('duration', 'Unknown')
+            url = result.get('url', '')
+
+            self.results_table.setItem(row, 0, QTableWidgetItem(platform))
+            self.results_table.setItem(row, 1, QTableWidgetItem(posted_by))
+            self.results_table.setItem(row, 2, QTableWidgetItem(title))
+            self.results_table.setItem(row, 3, QTableWidgetItem(duration))
+            self.results_table.setItem(row, 4, QTableWidgetItem(url))
+
+            # Store the URL in the table item
+            self.results_table.item(row, 4).setData(Qt.UserRole, url)
+
+        # Connect the double-click event to a dedicated method
+        self.results_table.cellDoubleClicked.connect(self.on_item_double_click)
+
+    def on_item_double_click(self, row: int, column: int):
+        """Handle double-click on result to open the URL"""
+        if column == 4:  # Ensure the URL column is double-clicked
+            item = self.results_table.item(row, column)
+            url = item.data(Qt.UserRole)
+            if url:
+                webbrowser.open(url)
 
 def main():
-    app = HighlightApp()
-    app.mainloop()
+    app = QtWidgets.QApplication([])
+    window = HighlightApp()
+    window.show()
+    app.exec_()
 
 if __name__ == "__main__":
     main()
-    # Add your main application logic here
     print("Highlight App is running")
