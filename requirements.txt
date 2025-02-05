@@ -1,0 +1,8 @@
+# Add your project dependencies here
+requests
+beautifulsoup4
+python-dotenv
+# ...other dependencies...
+tweepy
+google-api-python-client
+praw

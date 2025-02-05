@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Highlight App",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/highlight-app.py",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "python": "${command:python.interpreterPath}",
+            "justMyCode": true
+        }
+    ]
+}
