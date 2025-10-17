@@ -413,9 +413,8 @@ class HighlightSearcher:
         try:
             reddit_api = self.clients.get("reddit")
             if reddit_api:
-                subreddit = cast(Any, reddit_api.subreddit("basketball"))
+                subreddit = reddit_api.subreddit("basketball")
                 for submission in subreddit.search(query, limit=max_results):
-                    submission = cast(Any, submission)
                     if getattr(submission, "is_video", False):
                         results.append(
                             {
