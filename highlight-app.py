@@ -5,6 +5,7 @@ import webbrowser
 import os
 from datetime import datetime
 from typing import List, Dict, Any
+from typing import Optional
 import requests
 from bs4 import BeautifulSoup  # type: ignore
 
@@ -139,7 +140,7 @@ class APIKeys:
             print("Warning: Twitter API key is missing or invalid")
 
 
-from typing import Optional
+
 
 class HighlightSearcher:
     """Handles searching across different platforms"""
@@ -153,6 +154,8 @@ class HighlightSearcher:
     def _initialize_clients(self):
         """Initialize API clients with error handling"""
         self._initialize_twitter_client()
+        self._initialize_youtube_client()
+
     def _initialize_twitter_client(self):
         """Initialize Twitter client with error handling"""
         if APIS_AVAILABLE["twitter"] and self.api_keys.twitter_api_key:
@@ -165,27 +168,28 @@ class HighlightSearcher:
                         self.api_keys.twitter_access_token,
                         self.api_keys.twitter_access_token_secret,
                     )
-                self.clients["twitter"] = tweepy.API(auth, wait_on_rate_limit=True)
+                self.clients["twitter"] = tweepy.API(auth, wait_on_rate_limit=True)  # type: ignore
                 self._test_twitter_credentials()
             except Exception as e:
                 print(f"Failed to initialize Twitter client: {e}")
                 print("Twitter functionality will be disabled")
+
     def _test_twitter_credentials(self):
         """Test Twitter credentials"""
         try:
             twitter_api = self.clients.get("twitter")
             if twitter_api:
-                twitter_api.verify_credentials()
+                twitter_api.verify_credentials()  # type: ignore
                 print("Twitter authentication successful!")
-        except Exception as e:
+        except Exception:
             print("Twitter authentication failed - invalid credentials")
             if "twitter" in self.clients:
                 del self.clients["twitter"]
+
+    def _initialize_youtube_client(self):
         if APIS_AVAILABLE["youtube"]:
             key_preview = self.api_keys.youtube_key[:5] + "..." if self.api_keys.youtube_key else "None"
-            print(
-                f"Attempting YouTube initialization with key: {key_preview}"
-            )
+            print(f"Attempting YouTube initialization with key: {key_preview}")
             try:
                 if self.api_keys.youtube_key:
                     self.clients["youtube"] = build(
@@ -201,12 +205,12 @@ class HighlightSearcher:
                 print(f"YouTube client creation failed: {str(e)}")
                 if "youtube" in self.clients:
                     del self.clients["youtube"]
+
     def _test_youtube_api_key(self):
         """Test YouTube API key"""
         try:
             youtube_api = self.clients.get("youtube")  # type: ignore
             if youtube_api:
-                # The YouTube API client is dynamically generated; type: ignore is used to suppress static analysis errors.
                 youtube_api.search().list(
                     part="snippet", q="test", maxResults=1
                 ).execute()  # type: ignore
@@ -217,25 +221,13 @@ class HighlightSearcher:
                 print("YouTube API quota exceeded")
             elif "key" in str(e).lower():
                 key_preview = self.api_keys.youtube_key[:5] + "..." if self.api_keys.youtube_key else "None"
-                print(
-                    f"YouTube API key invalid or missing. Key starts with: {key_preview}"
-                )
+                print(f"YouTube API key invalid or missing. Key starts with: {key_preview}")
             if "youtube" in self.clients:
                 del self.clients["youtube"]
-            print("YouTube API test successful!")
-        except Exception as e:
-            print(f"YouTube API test failed: {str(e)}")
-            if "quota" in str(e).lower():
-                print("YouTube API quota exceeded")
-            elif "key" in str(e).lower():
-                print(
-                    f"YouTube API key invalid or missing. Key starts with: {self.api_keys.youtube_key[:5]}"
-                )
-            del self.clients["youtube"]
 
     def search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         """Aggregate search results from all available platforms"""
-        results = []
+        results: List[Dict[str, Any]] = []
         self.last_error = None  # Reset last error before starting a new search
 
         # Twitter search with enhanced error handling
@@ -256,6 +248,8 @@ class HighlightSearcher:
                 results.extend(youtube_results)
             except Exception as e:
                 self.last_error = e
+
+        return results
     def _search_twitter(self, query: str, max_results: int) -> List[Dict[str, Any]]:
         """
         Search Twitter for basketball highlights with enhanced functionality
@@ -266,7 +260,7 @@ class HighlightSearcher:
             search_query = f"{query} basketball highlights filter:videos lang:en"
             twitter_api = self.clients.get("twitter")
             if twitter_api:
-                tweets = twitter_api.search_tweets(
+                tweets = twitter_api.search_tweets(  # type: ignore
                     q=search_query,
                     count=max_results * 2,  # Request more to account for filtering
                     tweet_mode="extended",
@@ -305,7 +299,7 @@ class HighlightSearcher:
             print(f"Twitter API error: {e}")
             if 'Rate limit exceeded' in str(e):
                 messagebox.showwarning('Rate Limit', 'Twitter rate limit reached. Please try again later.')
-            return results  # Ensure return on all paths
+        return results
     def _scrape_twitter(self, query: str, max_results: int) -> List[Dict[str, Any]]:
         """
         Scrape Twitter for basketball highlights as a fallback
@@ -352,6 +346,7 @@ class HighlightSearcher:
         except Exception as e:
             self.last_error = e  # Store the last error
             print(f"Unexpected error during Twitter scraping: {e}")
+        return results
     def _search_youtube(self, query: str, max_results: int) -> List[Dict[str, Any]]:
         """Search YouTube for basketball highlights with enhanced metadata"""
         results: List[Dict[str, Any]] = []
@@ -364,9 +359,7 @@ class HighlightSearcher:
             if youtube_api:
                 # Search for videos with more metadata
                 search_response = (
-                    youtube_api
-                    .search()
-                    .list(
+                    youtube_api.search().list(  # type: ignore
                         q=f"{query} basketball highlights",
                         part="snippet",
                         type="video",
@@ -375,8 +368,7 @@ class HighlightSearcher:
                         order="date",  # Sort by date
                         relevanceLanguage="en",  # English results
                         safeSearch="none",  # Allow all content
-                    )
-                    .execute()
+                    ).execute()  # type: ignore
                 )
 
                 # Get video IDs for detailed info
@@ -388,10 +380,7 @@ class HighlightSearcher:
                 if video_ids:
                     # Get detailed video information
                     videos_response = (
-                        youtube_api
-                        .videos()
-                        .list(part="snippet,statistics", id=",".join(video_ids))
-                        .execute()
+                        youtube_api.videos().list(part="snippet,statistics", id=",".join(video_ids)).execute()  # type: ignore
                     )
 
                     # Create results with more metadata
@@ -403,9 +392,7 @@ class HighlightSearcher:
                                 "title": item.get("snippet", {}).get("title", ""),
                                 "url": f"https://www.youtube.com/watch?v={item.get('id', '')}",
                                 "upload_date": item.get("snippet", {}).get("publishedAt", ""),
-                                "score": int(
-                                    stats.get("viewCount", 0)
-                                ),  # Use view count as score
+                                "score": int(stats.get("viewCount", 0)),  # Use view count as score
                                 "description": item.get("snippet", {}).get("description", ""),
                                 "views": stats.get("viewCount", 0),
                                 "likes": stats.get("likeCount", 0),
@@ -417,6 +404,7 @@ class HighlightSearcher:
             print(f"YouTube API error: {str(e)}")
             if "quota" in str(e).lower():
                 print("YouTube API quota exceeded. Please try again later.")
+        return results
     def _search_reddit(self, query: str, max_results: int) -> List[Dict[str, Any]]:
         """
         Search Reddit for basketball highlights
@@ -439,29 +427,9 @@ class HighlightSearcher:
                                 "score": getattr(submission, "score", 0),
                             }
                         )
-
         except Exception as e:
             self.last_error = e  # Store the last error
             print(f"Reddit API error: {e}")
-
-        return results
-                if submission.is_video:
-                    results.append(
-                        {
-                            "platform": "Reddit",
-                            "title": submission.title,
-                            "url": submission.url,
-                            "upload_date": datetime.fromtimestamp(
-                                submission.created_utc
-                            ).isoformat(),
-                            "score": submission.score,
-                        }
-                    )
-
-        except Exception as e:
-            self.last_error = e  # Store the last error
-            print(f"Reddit API error: {e}")
-
         return results
 
     def _sort_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -475,7 +443,7 @@ class HighlightSearcher:
 
 class HighlightApp(tk.Tk):
     """Main application window"""
-        self.search_entry.bind("<Return>", lambda _: self.start_search())
+
     def __init__(self):
         super().__init__()
         self.title("Basketball Highlights Aggregator")
@@ -547,38 +515,27 @@ class HighlightApp(tk.Tk):
 
         threading.Thread(target=self._run_search, args=(query,), daemon=True).start()
 
+
     def _run_search(self, query: str):
         """Execute search and update results"""
         try:
             results = self.searcher.search(query)
             if not results:
                 # Check if the last error was due to access level
-                if self.searcher.last_error and "access level" in str(
-                    self.searcher.last_error
-                ):
-                    self.after(
-                        0,
-                        lambda: messagebox.showerror(
-                            "Access Level Error",
-                            "Your Twitter API access level does not allow this operation. "
-                            "Please apply for elevated access.",
-                        ),
-                    )
+                if self.searcher.last_error and "access level" in str(self.searcher.last_error):
+                    self.after(0, lambda: messagebox.showerror(
+                        "Access Level Error",
+                        "Your Twitter API access level does not allow this operation. Please apply for elevated access."
+                    ))
                 elif self.searcher.last_error:
-                    self.after(
-                        0,
-                        lambda: messagebox.showerror(
-                            "Search Error", f"Search failed: {self.searcher.last_error}"
-                        ),
-                    )
+                    self.after(0, lambda: messagebox.showerror(
+                        "Search Error", f"Search failed: {self.searcher.last_error}"
+                    ))
                 else:
-                    self.after(
-                        0,
-                        lambda: messagebox.showinfo(
-                            "No Results",
-                            "No highlights found. Please try different keywords.",
-                        ),
-                    )
+                    self.after(0, lambda: messagebox.showinfo(
+                        "No Results",
+                        "No highlights found. Please try different keywords."
+                    ))
             else:
                 self.after(0, self._update_results, results)
         except Exception as e:
@@ -587,22 +544,19 @@ class HighlightApp(tk.Tk):
             self.after(0, lambda: self.search_button.configure(state="normal"))
             self.after(0, lambda: self.search_entry.configure(state="normal"))
             self.after(0, lambda: self.status_label.configure(text="Ready"))
-            self.after(
-                0, lambda: self.search_entry.focus_set()
-    def on_item_double_click(self, event: object):
-        """Handle double-click on result"""
-        selection = self.tree.selection()
-        if selection:
-            item = selection[0]
-            values = self.tree.item(item)["values"]
-            url = values[3] if len(values) > 3 else values[2]
-            webbrowser.open_new_tab(url)
+            self.after(0, lambda: self.search_entry.focus_set())
+
+    def _update_results(self, results: List[Dict[str, Any]]):
+        """Update the results tree with search results"""
+        for result in results:
+            self.tree.insert(
+                "",
                 tk.END,
                 values=(
-                    result["platform"],
-                    result["title"],
-                    result["upload_date"],
-                    result["url"],
+                    result.get("platform", ""),
+                    result.get("title", ""),
+                    result.get("upload_date", ""),
+                    result.get("url", ""),
                 ),
             )
 
@@ -610,12 +564,13 @@ class HighlightApp(tk.Tk):
         """Show error message"""
         messagebox.showerror("Error", f"Search failed: {message}")
 
-    def on_item_double_click(self, event):
+    def on_item_double_click(self, event: object):
         """Handle double-click on result"""
         selection = self.tree.selection()
         if selection:
             item = selection[0]
-            url = self.tree.item(item)["values"][2]  # updated index from 3 to 2
+            values = self.tree.item(item)["values"]
+            url = values[3] if len(values) > 3 else values[2]
             webbrowser.open_new_tab(url)
 
 
