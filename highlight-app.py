@@ -164,7 +164,7 @@ class HighlightSearcher:
                     self.api_keys.twitter_api_key, self.api_keys.twitter_api_secret
                 )
                 if self.api_keys.twitter_access_token and self.api_keys.twitter_access_token_secret:
-                    auth.set_access_token(
+                    auth.set_access_token(  # type: ignore
                         self.api_keys.twitter_access_token,
                         self.api_keys.twitter_access_token_secret,
                     )
@@ -463,7 +463,7 @@ class HighlightApp(tk.Tk):
 
         self.search_entry = ttk.Entry(search_frame, width=50)
         self.search_entry.pack(side=tk.LEFT, padx=(0, 5))
-        self.search_entry.bind("<Return>", lambda e: self.start_search())
+        self.search_entry.bind("<Return>", lambda _: self.start_search())
 
         # Make sure entry is enabled and focused
         self.search_entry.config(state="normal")
@@ -490,7 +490,10 @@ class HighlightApp(tk.Tk):
         self.tree.column("URL", width=300)
 
         # Scrollbar
-        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
+        from typing import Any
+        def on_scrollbar(*args: Any) -> None:
+            self.tree.yview(*args)  # type: ignore
+        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=on_scrollbar)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         # Pack tree and scrollbar
@@ -563,14 +566,14 @@ class HighlightApp(tk.Tk):
     def _show_error(self, message: str):
         """Show error message"""
         messagebox.showerror("Error", f"Search failed: {message}")
-
-    def on_item_double_click(self, event: object):
+    def on_item_double_click(self, _: object):
         """Handle double-click on result"""
         selection = self.tree.selection()
         if selection:
             item = selection[0]
             values = self.tree.item(item)["values"]
             url = values[3] if len(values) > 3 else values[2]
+            webbrowser.open_new_tab(url)
             webbrowser.open_new_tab(url)
 
 
