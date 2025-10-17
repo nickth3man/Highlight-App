@@ -4,8 +4,7 @@ import threading
 import webbrowser
 import os
 from datetime import datetime
-from typing import List, Dict, Any
-from typing import Optional
+from typing import List, Dict, Any, Optional, cast
 import requests
 from bs4 import BeautifulSoup  # type: ignore
 
@@ -90,6 +89,7 @@ except ImportError:
     print(
         "YouTube API not available. Install with: pip install google-api-python-client"
     )
+    build = None  # type: ignore
 
 try:
     import tweepy  # type: ignore
@@ -147,7 +147,7 @@ class HighlightSearcher:
 
     def __init__(self):
         self.api_keys = APIKeys()
-        self.clients: dict[str, object] = {}
+        self.clients: Dict[str, Any] = {}
         self.last_error: Optional[Exception] = None  # Add this attribute to store the last error
         self._initialize_clients()
 
@@ -187,7 +187,7 @@ class HighlightSearcher:
                 del self.clients["twitter"]
 
     def _initialize_youtube_client(self):
-        if APIS_AVAILABLE["youtube"]:
+        if APIS_AVAILABLE["youtube"] and build is not None:
             key_preview = self.api_keys.youtube_key[:5] + "..." if self.api_keys.youtube_key else "None"
             print(f"Attempting YouTube initialization with key: {key_preview}")
             try:
