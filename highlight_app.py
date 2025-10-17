@@ -75,7 +75,7 @@ class HighlightApp(tk.Tk):
         except (FileNotFoundError, RuntimeError, ValueError) as e:
             logger.error(f"Failed to load API keys: {e}")
             # Show error on startup if keys are missing
-            self.after(0, lambda: messagebox.showerror(
+            self.after(0, lambda e=e: messagebox.showerror(
                 "Configuration Error",
                 f"Failed to load API configuration: {e}\nPlease check your .env file."
             ))
