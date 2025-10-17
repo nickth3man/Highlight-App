@@ -269,15 +269,15 @@ class HighlightSearcher:
 
                 for tweet in tweets:
                     # Extract media URLs
-                    media = getattr(tweet, "entities", {}).get("media", [])
-                    urls = getattr(tweet, "entities", {}).get("urls", [])
+                    media = cast(List[Dict[str, Any]], getattr(tweet, "entities", {}).get("media", []))
+                    urls = cast(List[Dict[str, Any]], getattr(tweet, "entities", {}).get("urls", []))
 
                     # Get the best available URL
-                    video_url = None
-                    if media and isinstance(media, list) and len(media) > 0:
-                        video_url = media[0].get("expanded_url")
-                    elif urls and isinstance(urls, list) and len(urls) > 0:
-                        video_url = urls[0].get("expanded_url")
+                    video_url: Optional[str] = None
+                    if media and len(media) > 0:
+                        video_url = cast(str, media[0].get("expanded_url"))
+                    elif urls and len(urls) > 0:
+                        video_url = cast(str, urls[0].get("expanded_url"))
 
                     if video_url:
                         results.append(
@@ -358,7 +358,7 @@ class HighlightSearcher:
             youtube_api = self.clients.get("youtube")
             if youtube_api:
                 # Search for videos with more metadata
-                search_response = (
+                search_response: Dict[str, Any] = (
                     youtube_api.search().list(  # type: ignore
                         q=f"{query} basketball highlights",
                         part="snippet",
@@ -372,20 +372,20 @@ class HighlightSearcher:
                 )
 
                 # Get video IDs for detailed info
-                video_ids = [
+                video_ids: List[str] = [
                     item["id"]["videoId"] for item in search_response.get("items", [])
                     if "id" in item and "videoId" in item["id"]
                 ]
 
                 if video_ids:
                     # Get detailed video information
-                    videos_response = (
+                    videos_response: Dict[str, Any] = (
                         youtube_api.videos().list(part="snippet,statistics", id=",".join(video_ids)).execute()  # type: ignore
                     )
 
                     # Create results with more metadata
                     for item in videos_response.get("items", []):
-                        stats = item.get("statistics", {})
+                        stats: Dict[str, Any] = item.get("statistics", {})
                         results.append(
                             {
                                 "platform": "YouTube",
