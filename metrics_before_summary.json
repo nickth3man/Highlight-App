@@ -1,0 +1,108 @@
+{
+  "forensic_mapping_report": {
+    "timestamp": "2025-10-16T22:24",
+    "file": "highlight-app.py",
+    "metrics": {
+      "lines_of_code": {
+        "total_nloc": 452,
+        "avg_nloc_per_function": 16.8,
+        "functions_count": 22
+      },
+      "complexity": {
+        "avg_ccn": 4.3,
+        "hotspots_complexity_gt_10": [
+          {
+            "function": "_search_twitter",
+            "cc": 11,
+            "rank": "C",
+            "issues": ["media/URLs extraction logic", "tweet processing loop with multiple entity checks"]
+          },
+          {
+            "function": "_scrape_twitter",
+            "cc": 11,
+            "rank": "C",
+            "issues": ["HTML parsing logic", "video detection heuristic", "fallback date handling"]
+          },
+          {
+            "function": "_search_youtube",
+            "cc": 10,
+            "rank": "B",
+            "issues": ["API response processing", "video detail enrichment", "statistics mapping"]
+          }
+        ],
+        "concerning_complexity_7_9": [
+          {
+            "function": "_initialize_youtube_client",
+            "cc": 7,
+            "issues": ["client creation with multiple try/catch", "key validation in loop"]
+          },
+          {
+            "function": "_test_youtube_api_key",
+            "cc": 7,
+            "issues": ["API test logic with quota/handle", "key validity checks"]
+          },
+          {
+            "function": "_run_search",
+            "cc": 7,
+            "issues": ["threading + error handling + UI updates"]
+          },
+          {
+            "function": "__init__ (APIKeys)",
+            "cc": 7,
+            "issues": ["multiple env var loads with debug prints"]
+          }
+        ]
+      },
+      "structural_issues": {
+        "monolithic_design": {
+          "single_file_size": "452 NLOC in one script",
+          "mixed_concerns": ["Environment config", "API client management", "Data models", "GUI framework"],
+          "import_scattering": "dependencies imported in global scope with conditional logic"
+        },
+        "security_issues": [
+          "Debug prints expose API keys: TWITTER_API_KEY and YOUTUBE_API_KEY printed with [:10]... pattern",
+          "Environment file contents logged to console",
+          "No secret sanitization in logging"
+        ],
+        "anti_patterns": [
+          "Runtime pip installs (os.system('pip install tweepy'))",
+          "Hardcoded debug file writes ('twitter_search_response.html')",
+          "Duplicate webbrowser.open_new_tab() calls",
+          "Global state mutation (APIS_AVAILABLE dict)"
+        ],
+        "error_handling": {
+          "mixed_patterns": "some try/catch blocks, some bare except blocks",
+          "inconsistent_error_storage": "self.last_error sometimes stored, sometimes not",
+          "silent_failures": "many operations continue without proper error propagation"
+        }
+      },
+      "testing_gaps": {
+        "no_unit_tests": "0 test files detected",
+        "no_integration_tests": "GUI has no smoke tests",
+        "no_mocking": "external API calls in core business logic",
+        "testability_issues": "dependence on live APIs, GUI framework, environment variables"
+      },
+      "depend民法": {
+        "external_deps": [
+          "requests", "beautifulsoup4", "python-dotenv", "tweepy", "google-api-python-client"
+        ],
+        "conditional_imports": "APIS_AVAILABLE dict controls import success",
+        "circular_dependencies": "None detected in current structure"
+      }
+    },
+    "refactor_targets": {
+      "complexity_reduction": "Reduce all functions to CC <= 10, aim for <= 8 where possible",
+      "loc_reduction_target": "Target 30% reduction through elimination (duplicates, failed_code, improved_structure)",
+      "solid_violations": {
+        "srp": ["APIKeys handles config AND debug logging", "HighlightSearcher handles search AND client management"],
+        "dip": ["Direct dependencies on tweepy, googleapiclient, tkinter in business logic"],
+        "isp": ["Result processing coupled to specific platform formats"]
+      },
+      "anti_patterns_to_fix": [
+        "God class (HighlightSearcher with 17 methods)",
+        "Feature envy (GUI intimately coupled to searcher internals)",
+        "Primitive obsession (Dict[str, Any] for results instead of typed objects)"
+      ]
+    }
+  }
+}
