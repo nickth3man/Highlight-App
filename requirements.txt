@@ -1,8 +1,8 @@
-# Add your project dependencies here
+# Project dependencies for Highlight App
 requests
 beautifulsoup4
 python-dotenv
-# ...other dependencies...
 tweepy
 google-api-python-client
-praw
+google-auth-oauthlib
+google-auth-httplib2
