@@ -1,12 +1,18 @@
 """
 YouTube API client for searching basketball highlights
 """
-import logging
-from typing import List, Dict, Any
 
-from exceptions import APIError, APIAuthenticationError, APINotAvailableError
+import logging
+from typing import Any, Dict, List
+
+from highlight_app.exceptions import (
+    APIAuthenticationError,
+    APIError,
+    APINotAvailableError,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class YouTubeClient:
     """
@@ -26,7 +32,9 @@ class YouTubeClient:
         try:
             from googleapiclient.discovery import build  # type: ignore
         except ImportError:
-            raise APINotAvailableError("google-api-python-client is required for YouTube functionality")
+            raise APINotAvailableError(
+                "google-api-python-client is required for YouTube functionality"
+            )
 
         self.api_key = api_key
 
@@ -38,7 +46,9 @@ class YouTubeClient:
                 cache_discovery=False,
             )  # type: ignore
         except Exception as e:
-            raise APINotAvailableError(f"Failed to initialize YouTube client: {e}") from e
+            raise APINotAvailableError(
+                f"Failed to initialize YouTube client: {e}"
+            ) from e
 
         # Test API key on initialization
         self.test_api_key()
@@ -52,7 +62,7 @@ class YouTubeClient:
             APIError: For other API errors
         """
         try:
-            response = self.api.search().list(  # type: ignore
+            self.api.search().list(  # type: ignore
                 part="snippet",
                 q="test",
                 maxResults=1,
@@ -63,9 +73,17 @@ class YouTubeClient:
             if "api key" in error_str or "keyinvalid" in error_str:
                 raise APIAuthenticationError("YouTube API key is invalid") from e
             elif "quota" in error_str:
-                api_key_preview = self.api_key[:10] + "..." if len(self.api_key) > 10 else self.api_key
-                logger.warning(f"YouTube API key invalid or missing. Key starts with: {api_key_preview}")
-                raise APIAuthenticationError("YouTube API key invalid or quota exceeded") from e
+                api_key_preview = (
+                    self.api_key[:10] + "..."
+                    if len(self.api_key) > 10
+                    else self.api_key
+                )
+                logger.warning(
+                    f"YouTube API key invalid or missing. Key starts with: {api_key_preview}"
+                )
+                raise APIAuthenticationError(
+                    "YouTube API key invalid or quota exceeded"
+                ) from e
             else:
                 logger.error(f"YouTube API test failed: {e}")
                 raise APIError(f"YouTube API error: {e}") from e
@@ -116,8 +134,7 @@ class YouTubeClient:
 
             # Get detailed video information (including statistics)
             videos_response: Any = self.api.videos().list(  # type: ignore
-                part="snippet,statistics",
-                id=",".join(video_ids)
+                part="snippet,statistics", id=",".join(video_ids)
             ).execute()  # type: ignore
 
             # Create results
@@ -140,8 +157,14 @@ class YouTubeClient:
 
         except Exception as e:
             error_str = str(e).lower()
-            if "api key" in error_str or "keyinvalid" in error_str or "403" in error_str:
-                raise APIAuthenticationError("YouTube API authentication failed") from e
+            if (
+                "api key" in error_str
+                or "keyinvalid" in error_str
+                or "403" in error_str
+            ):
+                raise APIAuthenticationError(
+                    "YouTube API authentication failed"
+                ) from e
             elif "quota" in error_str:
                 logger.warning("YouTube API quota exceeded")
                 raise APIAuthenticationError("YouTube API quota exceeded") from e

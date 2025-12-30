@@ -1,0 +1,27 @@
+[project]
+name = "highlight-app"
+version = "0.1.0"
+description = "Basketball highlights aggregator from Twitter and YouTube"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "python-dotenv",
+    "tweepy",
+    "google-api-python-client",
+    "google-auth-oauthlib",
+    "google-auth-httplib2",
+]
+
+[project.scripts]
+highlight-app = "highlight_app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest",
+]

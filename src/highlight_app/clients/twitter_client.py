@@ -1,15 +1,23 @@
 """
 Twitter API client for searching basketball highlights
 """
+
 import logging
-from typing import List, Dict, Any, Optional, cast
 from datetime import datetime
+from typing import Any, Dict, List, Optional, cast
+
 import requests
 from bs4 import BeautifulSoup  # type: ignore
 
-from exceptions import APIError, APIAuthenticationError, RateLimitError, APINotAvailableError
+from highlight_app.exceptions import (
+    APIAuthenticationError,
+    APIError,
+    APINotAvailableError,
+    RateLimitError,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class TwitterClient:
     """
@@ -17,7 +25,9 @@ class TwitterClient:
     Includes fallback scraping capability.
     """
 
-    def __init__(self, api_key: str, api_secret: str, access_token: str, access_token_secret: str) -> None:
+    def __init__(
+        self, api_key: str, api_secret: str, access_token: str, access_token_secret: str
+    ) -> None:
         """
         Initialize Twitter client.
 
@@ -33,7 +43,9 @@ class TwitterClient:
         try:
             import tweepy  # type: ignore
         except ImportError:
-            raise APINotAvailableError("tweepy is required for Twitter functionality")
+            raise APINotAvailableError(
+                "tweepy is required for Twitter functionality"
+            )
 
         self.api_key = api_key
         self.api_secret = api_secret
@@ -62,7 +74,9 @@ class TwitterClient:
             logger.error(f"Twitter authentication failed: {e}")
             raise APIAuthenticationError("Twitter authentication failed") from e
 
-    def search(self, query: str, max_results: int = 5, use_fallback: bool = True) -> List[Dict[str, Any]]:
+    def search(
+        self, query: str, max_results: int = 5, use_fallback: bool = True
+    ) -> List[Dict[str, Any]]:
         """
         Search for basketball highlights on Twitter.
 
@@ -89,7 +103,9 @@ class TwitterClient:
                 return self._scrape_fallback(query, max_results)
             except Exception as fallback_error:
                 logger.error(f"Fallback scraping also failed: {fallback_error}")
-                raise APINotAvailableError("Twitter search unavailable: both API and fallback failed") from fallback_error
+                raise APINotAvailableError(
+                    "Twitter search unavailable: both API and fallback failed"
+                ) from fallback_error
         except Exception as e:
             logger.error(f"Unexpected error in Twitter search: {e}")
             raise APIError("Unexpected error during Twitter search") from e
@@ -102,24 +118,35 @@ class TwitterClient:
 
         search_query = f"{query} basketball highlights filter:videos lang:en"
         try:
-            tweets = cast(List[Any], self.api.search_tweets(
-                q=search_query,
-                count=max_results * 2,  # Request more to account for filtering
-                tweet_mode="extended",
-                result_type="recent",
-            ))
+            tweets = cast(
+                List[Any],
+                self.api.search_tweets(
+                    q=search_query,
+                    count=max_results * 2,  # Request more to account for filtering
+                    tweet_mode="extended",
+                    result_type="recent",
+                ),
+            )
         except Exception as e:
-            if 'Rate limit exceeded' in str(e):
+            if "Rate limit exceeded" in str(e):
                 raise RateLimitError("Twitter rate limit exceeded")
-            elif 'access level' in str(e).lower():
-                raise APIAuthenticationError("Access level does not allow this operation")
+            elif "access level" in str(e).lower():
+                raise APIAuthenticationError(
+                    "Access level does not allow this operation"
+                )
             else:
                 raise APIError(f"Twitter API error: {e}") from e
 
         for tweet in tweets:
             # Extract media URLs
-            media = cast(List[Dict[str, Any]], getattr(tweet, "entities", {}).get("media", []))
-            urls = cast(List[Dict[str, Any]], getattr(tweet, "entities", {}).get("urls", []))
+            media = cast(
+                List[Dict[str, Any]],
+                getattr(tweet, "entities", {}).get("media", []),
+            )
+            urls = cast(
+                List[Dict[str, Any]],
+                getattr(tweet, "entities", {}).get("urls", []),
+            )
 
             # Get the best available URL
             video_url: Optional[str] = None
@@ -134,7 +161,9 @@ class TwitterClient:
                         "platform": "Twitter",
                         "title": getattr(tweet, "full_text", "")[:100] + "...",
                         "url": video_url,
-                        "upload_date": getattr(getattr(tweet, "created_at", None), "isoformat", lambda: "")(),
+                        "upload_date": getattr(
+                            getattr(tweet, "created_at", None), "isoformat", lambda: ""
+                        )(),
                         "score": getattr(tweet, "favorite_count", 0)
                         + getattr(tweet, "retweet_count", 0),
                     }
@@ -158,10 +187,6 @@ class TwitterClient:
 
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # Debug: save response for analysis if needed
-            # with open("twitter_search_response.html", "w", encoding="utf-8") as f:
-            #     f.write(soup.prettify())
-
             tweets = soup.find_all("div", {"data-testid": "tweet"})
             for tweet in tweets[:max_results]:
                 text_div = tweet.find("div", {"lang": "en"})
@@ -169,7 +194,8 @@ class TwitterClient:
                 link_tag = tweet.find("a", {"role": "link"})
                 video_url = (
                     f"https://twitter.com{link_tag['href']}"
-                    if link_tag and link_tag.has_attr("href") else None
+                    if link_tag and link_tag.has_attr("href")
+                    else None
                 )
 
                 # Check if the tweet contains a video

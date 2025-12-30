@@ -1,21 +1,17 @@
 """
 Tests for HighlightSearcher
 """
+
 import unittest
-import sys
-import os
 from typing import List
 
-# Define search result structure for type safety
 try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
 
-# Add parent directory to path for importing
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from highlight_app import HighlightSearcher
+
 
 class HighlightResult(TypedDict, total=False):
     platform: str
@@ -27,7 +23,9 @@ class HighlightResult(TypedDict, total=False):
 class MockClient:
     """Mock client that returns predefined results"""
 
-    def __init__(self, name: str, results: List[HighlightResult], should_fail: bool = False):
+    def __init__(
+        self, name: str, results: List[HighlightResult], should_fail: bool = False
+    ):
         self.name = name
         self.results = results
         self.should_fail = should_fail
@@ -39,7 +37,6 @@ class MockClient:
 
 
 class TestHighlightSearcher(unittest.TestCase):
-
     def test_empty_searcher(self):
         """Test searcher with no clients"""
         searcher = HighlightSearcher()
@@ -49,7 +46,12 @@ class TestHighlightSearcher(unittest.TestCase):
     def test_single_client_success(self):
         """Test with one successful mock client"""
         mock_results: List[HighlightResult] = [
-            {"platform": "mock", "title": "Test highlight", "url": "http://test.com", "score": 10}
+            {
+                "platform": "mock",
+                "title": "Test highlight",
+                "url": "http://test.com",
+                "score": 10,
+            }
         ]
         client = MockClient("mock", mock_results)
         searcher = HighlightSearcher({"mock": client})
@@ -59,20 +61,22 @@ class TestHighlightSearcher(unittest.TestCase):
 
     def test_multiple_clients(self):
         """Test aggregation from multiple clients"""
-        mock1_results: List[HighlightResult] = [{"platform": "m1", "title": "title1", "url": "url1", "score": 5}]
+        mock1_results: List[HighlightResult] = [
+            {"platform": "m1", "title": "title1", "url": "url1", "score": 5}
+        ]
         mock2_results: List[HighlightResult] = [
             {"platform": "m2", "title": "title2", "url": "url2", "score": 10},
-            {"platform": "m2", "title": "title3", "url": "url3", "score": 1}
+            {"platform": "m2", "title": "title3", "url": "url3", "score": 1},
         ]
         clients = {
             "mock1": MockClient("mock1", mock1_results),
-            "mock2": MockClient("mock2", mock2_results)
+            "mock2": MockClient("mock2", mock2_results),
         }
         searcher = HighlightSearcher(clients)
         results = searcher.search("test")
         self.assertEqual(len(results), 3)
         # Should be sorted by score desc, then date
-        self.assertEqual(results[0]["platform"], "mock1")  # score 5 but earlier?
+        self.assertEqual(results[0]["score"], 10)  # Highest score first
 
     def test_client_failure(self):
         """Test handling of client failures"""
@@ -80,7 +84,7 @@ class TestHighlightSearcher(unittest.TestCase):
         mock_fail = MockClient("bad", [], should_fail=True)
         clients = {
             "good": MockClient("good", mock_success),
-            "bad": mock_fail
+            "bad": mock_fail,
         }
         searcher = HighlightSearcher(clients)
         results = searcher.search("test")
@@ -91,5 +95,5 @@ class TestHighlightSearcher(unittest.TestCase):
         self.assertIsNotNone(searcher.last_error)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,8 +1,0 @@
-# Project dependencies for Highlight App
-requests
-beautifulsoup4
-python-dotenv
-tweepy
-google-api-python-client
-google-auth-oauthlib
-google-auth-httplib2

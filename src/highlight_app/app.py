@@ -1,21 +1,22 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import threading
-import webbrowser
-import logging
-from typing import List, Dict, Any, Optional
+"""
+Main application module for Highlight App
+"""
 
-# New modular imports
-from config import load_api_keys
-from exceptions import APIAuthenticationError, APINotAvailableError
-from clients.twitter_client import TwitterClient
-from clients.youtube_client import YouTubeClient
+import logging
+import threading
+import tkinter as tk
+import webbrowser
+from tkinter import messagebox, ttk
+from typing import Any, Dict, List, Optional
+
+from highlight_app.clients.twitter_client import TwitterClient
+from highlight_app.clients.youtube_client import YouTubeClient
+from highlight_app.config import load_api_keys
+from highlight_app.exceptions import APIAuthenticationError, APINotAvailableError
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
 
 
 class HighlightSearcher:
@@ -75,14 +76,22 @@ class HighlightApp(tk.Tk):
         except (FileNotFoundError, RuntimeError, ValueError) as e:
             logger.error(f"Failed to load API keys: {e}")
             # Show error on startup if keys are missing
-            self.after(0, lambda e=e: messagebox.showerror(
-                "Configuration Error",
-                f"Failed to load API configuration: {e}\nPlease check your .env file."
-            ))
+            self.after(
+                0,
+                lambda e=e: messagebox.showerror(
+                    "Configuration Error",
+                    f"Failed to load API configuration: {e}\nPlease check your .env file.",
+                ),
+            )
             return clients  # Return empty dict, search will handle no clients
 
         # Create clients (catch exceptions if API unavailable)
-        if api_keys.twitter_api_key and api_keys.twitter_api_secret and api_keys.twitter_access_token and api_keys.twitter_access_token_secret:
+        if (
+            api_keys.twitter_api_key
+            and api_keys.twitter_api_secret
+            and api_keys.twitter_access_token
+            and api_keys.twitter_access_token_secret
+        ):
             try:
                 clients["twitter"] = TwitterClient(
                     api_key=api_keys.twitter_api_key,
@@ -142,9 +151,9 @@ class HighlightApp(tk.Tk):
         self.tree.column("URL", width=300)
 
         # Scrollbar
-        from typing import Any
         def on_scrollbar(*args: Any) -> None:
             self.tree.yview(*args)  # type: ignore
+
         scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=on_scrollbar)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
@@ -170,27 +179,37 @@ class HighlightApp(tk.Tk):
 
         threading.Thread(target=self._run_search, args=(query,), daemon=True).start()
 
-
     def _run_search(self, query: str):
         """Execute search and update results"""
         try:
             results = self.searcher.search(query)
             if not results:
                 # Check if the last error was due to access level
-                if self.searcher.last_error and "access level" in str(self.searcher.last_error):
-                    self.after(0, lambda: messagebox.showerror(
-                        "Access Level Error",
-                        "Your Twitter API access level does not allow this operation. Please apply for elevated access."
-                    ))
+                if self.searcher.last_error and "access level" in str(
+                    self.searcher.last_error
+                ):
+                    self.after(
+                        0,
+                        lambda: messagebox.showerror(
+                            "Access Level Error",
+                            "Your Twitter API access level does not allow this operation. Please apply for elevated access.",
+                        ),
+                    )
                 elif self.searcher.last_error:
-                    self.after(0, lambda: messagebox.showerror(
-                        "Search Error", f"Search failed: {self.searcher.last_error}"
-                    ))
+                    self.after(
+                        0,
+                        lambda: messagebox.showerror(
+                            "Search Error", f"Search failed: {self.searcher.last_error}"
+                        ),
+                    )
                 else:
-                    self.after(0, lambda: messagebox.showinfo(
-                        "No Results",
-                        "No highlights found. Please try different keywords."
-                    ))
+                    self.after(
+                        0,
+                        lambda: messagebox.showinfo(
+                            "No Results",
+                            "No highlights found. Please try different keywords.",
+                        ),
+                    )
             else:
                 self.after(0, self._update_results, results)
         except Exception as e:
@@ -218,6 +237,7 @@ class HighlightApp(tk.Tk):
     def _show_error(self, message: str):
         """Show error message"""
         messagebox.showerror("Error", f"Search failed: {message}")
+
     def on_item_double_click(self, _: object):
         """Handle double-click on result"""
         selection = self.tree.selection()
@@ -235,5 +255,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # Add your main application logic here
-    print("Highlight App is running")

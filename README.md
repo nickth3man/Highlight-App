@@ -1,1 +1,1 @@
-ÿþ
+# Highlight App
