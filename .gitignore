@@ -192,3 +192,6 @@ twitter_search_response.html
 ehthumbs.db
 Thumbs.db
 Desktop.ini
+.claude/
+.opencode/
+.ruff_cache/

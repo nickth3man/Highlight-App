@@ -6,7 +6,6 @@ Handles loading and validation of environment variables and API keys.
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +14,15 @@ logger = logging.getLogger(__name__)
 class APIKeys:
     """Container for API keys loaded from environment variables"""
 
-    twitter_api_key: Optional[str]
-    twitter_api_secret: Optional[str]
-    twitter_bearer_token: Optional[str]
-    twitter_access_token: Optional[str]
-    twitter_access_token_secret: Optional[str]
-    youtube_key: Optional[str]
+    twitter_api_key: str | None
+    twitter_api_secret: str | None
+    twitter_bearer_token: str | None
+    twitter_access_token: str | None
+    twitter_access_token_secret: str | None
+    youtube_key: str | None
 
 
-def load_api_keys(env_path: Optional[str] = None) -> APIKeys:
+def load_api_keys(env_path: str | None = None) -> APIKeys:
     """
     Load and validate API keys from environment variables.
 
@@ -52,13 +51,13 @@ def load_api_keys(env_path: Optional[str] = None) -> APIKeys:
 
             logger.debug("Environment variables loaded from .env file")
 
-        except ImportError:
+        except ImportError as e:
             logger.error(
                 "python-dotenv is required. Install with: pip install python-dotenv"
             )
             raise RuntimeError(
                 "python-dotenv is required. See README for setup instructions."
-            )
+            ) from e
 
     # Load required environment variables
     keys = APIKeys(

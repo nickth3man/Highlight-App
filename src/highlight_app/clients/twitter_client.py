@@ -4,10 +4,10 @@ Twitter API client for searching basketball highlights
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 import requests
-from bs4 import BeautifulSoup  # type: ignore
+from bs4 import BeautifulSoup
 
 from highlight_app.exceptions import (
     APIAuthenticationError,
@@ -41,11 +41,11 @@ class TwitterClient:
             APINotAvailableError: If tweepy is not available
         """
         try:
-            import tweepy  # type: ignore
-        except ImportError:
+            import tweepy
+        except ImportError as e:
             raise APINotAvailableError(
                 "tweepy is required for Twitter functionality"
-            )
+            ) from e
 
         self.api_key = api_key
         self.api_secret = api_secret
@@ -54,8 +54,8 @@ class TwitterClient:
 
         # Initialize client
         auth = tweepy.OAuthHandler(api_key, api_secret)
-        auth.set_access_token(access_token, access_token_secret)  # type: ignore
-        self.api: Any = tweepy.API(auth, wait_on_rate_limit=True)  # type: ignore
+        auth.set_access_token(access_token, access_token_secret)
+        self.api: Any = tweepy.API(auth, wait_on_rate_limit=True)
 
         # Test credentials on initialization
         self.test_credentials()
@@ -76,7 +76,7 @@ class TwitterClient:
 
     def search(
         self, query: str, max_results: int = 5, use_fallback: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search for basketball highlights on Twitter.
 
@@ -110,16 +110,16 @@ class TwitterClient:
             logger.error(f"Unexpected error in Twitter search: {e}")
             raise APIError("Unexpected error during Twitter search") from e
 
-    def _search_api(self, query: str, max_results: int) -> List[Dict[str, Any]]:
+    def _search_api(self, query: str, max_results: int) -> list[dict[str, Any]]:
         """
         Search using Twitter API v1.1
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         search_query = f"{query} basketball highlights filter:videos lang:en"
         try:
             tweets = cast(
-                List[Any],
+                list[Any],
                 self.api.search_tweets(
                     q=search_query,
                     count=max_results * 2,  # Request more to account for filtering
@@ -129,27 +129,27 @@ class TwitterClient:
             )
         except Exception as e:
             if "Rate limit exceeded" in str(e):
-                raise RateLimitError("Twitter rate limit exceeded")
+                raise RateLimitError("Twitter rate limit exceeded") from e
             elif "access level" in str(e).lower():
                 raise APIAuthenticationError(
                     "Access level does not allow this operation"
-                )
+                ) from e
             else:
                 raise APIError(f"Twitter API error: {e}") from e
 
         for tweet in tweets:
             # Extract media URLs
             media = cast(
-                List[Dict[str, Any]],
+                list[dict[str, Any]],
                 getattr(tweet, "entities", {}).get("media", []),
             )
             urls = cast(
-                List[Dict[str, Any]],
+                list[dict[str, Any]],
                 getattr(tweet, "entities", {}).get("urls", []),
             )
 
             # Get the best available URL
-            video_url: Optional[str] = None
+            video_url: str | None = None
             if media and len(media) > 0:
                 video_url = cast(str, media[0].get("expanded_url"))
             elif urls and len(urls) > 0:
@@ -174,11 +174,11 @@ class TwitterClient:
 
         return results
 
-    def _scrape_fallback(self, query: str, max_results: int) -> List[Dict[str, Any]]:
+    def _scrape_fallback(self, query: str, max_results: int) -> list[dict[str, Any]]:
         """
         Fallback method using web scraping when API is unavailable
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         try:
             search_url = f"https://twitter.com/search?q={query} basketball highlights filter:videos lang:en&src=typed_query"

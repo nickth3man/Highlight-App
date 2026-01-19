@@ -3,7 +3,7 @@ YouTube API client for searching basketball highlights
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from highlight_app.exceptions import (
     APIAuthenticationError,
@@ -30,11 +30,11 @@ class YouTubeClient:
             APINotAvailableError: If googleapiclient is not available or API key is invalid
         """
         try:
-            from googleapiclient.discovery import build  # type: ignore
-        except ImportError:
+            from googleapiclient.discovery import build
+        except ImportError as e:
             raise APINotAvailableError(
                 "google-api-python-client is required for YouTube functionality"
-            )
+            ) from e
 
         self.api_key = api_key
 
@@ -44,7 +44,7 @@ class YouTubeClient:
                 "v3",
                 developerKey=api_key,
                 cache_discovery=False,
-            )  # type: ignore
+            )
         except Exception as e:
             raise APINotAvailableError(
                 f"Failed to initialize YouTube client: {e}"
@@ -62,11 +62,11 @@ class YouTubeClient:
             APIError: For other API errors
         """
         try:
-            self.api.search().list(  # type: ignore
+            self.api.search().list(
                 part="snippet",
                 q="test",
                 maxResults=1,
-            ).execute()  # type: ignore
+            ).execute()
             logger.debug("YouTube API test successful")
         except Exception as e:
             error_str = str(e).lower()
@@ -88,7 +88,7 @@ class YouTubeClient:
                 logger.error(f"YouTube API test failed: {e}")
                 raise APIError(f"YouTube API error: {e}") from e
 
-    def search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
         """
         Search for basketball highlights on YouTube.
 
@@ -103,26 +103,30 @@ class YouTubeClient:
             APIAuthenticationError: If API key issues
             APIError: For other API errors
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         if not self.api:
             raise APINotAvailableError("YouTube client not initialized")
 
         try:
             # Search for videos
-            search_response: Any = self.api.search().list(  # type: ignore
-                q=f"{query} basketball highlights",
-                part="snippet",
-                type="video",
-                maxResults=max_results,
-                videoDefinition="high",  # Only HD videos
-                order="date",  # Sort by date for recency
-                relevanceLanguage="en",  # English results
-                safeSearch="none",  # Allow all content
-            ).execute()  # type: ignore
+            search_response: Any = (
+                self.api.search()
+                .list(
+                    q=f"{query} basketball highlights",
+                    part="snippet",
+                    type="video",
+                    maxResults=max_results,
+                    videoDefinition="high",  # Only HD videos
+                    order="date",  # Sort by date for recency
+                    relevanceLanguage="en",  # English results
+                    safeSearch="none",  # Allow all content
+                )
+                .execute()
+            )
 
             # Get video IDs for detailed info
-            video_ids: List[str] = [
+            video_ids: list[str] = [
                 item["id"]["videoId"]
                 for item in search_response.get("items", [])
                 if "id" in item and "videoId" in item["id"]
@@ -133,9 +137,11 @@ class YouTubeClient:
                 return results
 
             # Get detailed video information (including statistics)
-            videos_response: Any = self.api.videos().list(  # type: ignore
-                part="snippet,statistics", id=",".join(video_ids)
-            ).execute()  # type: ignore
+            videos_response: Any = (
+                self.api.videos()
+                .list(part="snippet,statistics", id=",".join(video_ids))
+                .execute()
+            )
 
             # Create results
             for item in videos_response.get("items", []):
@@ -148,7 +154,9 @@ class YouTubeClient:
                         "title": snippet.get("title", ""),
                         "url": f"https://www.youtube.com/watch?v={item.get('id', '')}",
                         "upload_date": snippet.get("publishedAt", ""),
-                        "score": int(stats.get("viewCount", 0)),  # Use view count as score
+                        "score": int(
+                            stats.get("viewCount", 0)
+                        ),  # Use view count as score
                         "description": snippet.get("description", ""),
                         "views": stats.get("viewCount", 0),
                         "likes": stats.get("likeCount", 0),
@@ -162,9 +170,7 @@ class YouTubeClient:
                 or "keyinvalid" in error_str
                 or "403" in error_str
             ):
-                raise APIAuthenticationError(
-                    "YouTube API authentication failed"
-                ) from e
+                raise APIAuthenticationError("YouTube API authentication failed") from e
             elif "quota" in error_str:
                 logger.warning("YouTube API quota exceeded")
                 raise APIAuthenticationError("YouTube API quota exceeded") from e

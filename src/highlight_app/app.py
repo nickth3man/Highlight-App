@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from highlight_app.clients.twitter_client import TwitterClient
 from highlight_app.clients.youtube_client import YouTubeClient
@@ -22,13 +22,13 @@ logger = logging.getLogger(__name__)
 class HighlightSearcher:
     """Handles searching across different platforms using injected client objects"""
 
-    def __init__(self, clients: Optional[Dict[str, Any]] = None):
-        self.clients: Dict[str, Any] = clients or {}
-        self.last_error: Optional[Exception] = None
+    def __init__(self, clients: dict[str, Any] | None = None):
+        self.clients: dict[str, Any] = clients or {}
+        self.last_error: Exception | None = None
 
-    def search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
         """Aggregate search results from all available platforms"""
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         self.last_error = None  # Reset last error before starting a new search
 
         # Search each client
@@ -43,7 +43,7 @@ class HighlightSearcher:
 
         return self._sort_results(results)
 
-    def _sort_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _sort_results(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Sort results by score and date"""
         return sorted(
             results,
@@ -66,9 +66,9 @@ class HighlightApp(tk.Tk):
 
         self._create_widgets()
 
-    def _initialize_clients(self) -> Dict[str, Any]:
+    def _initialize_clients(self) -> dict[str, Any]:
         """Initialize API clients with error handling"""
-        clients: Dict[str, Any] = {}
+        clients: dict[str, Any] = {}
 
         try:
             # Load API keys
@@ -152,7 +152,7 @@ class HighlightApp(tk.Tk):
 
         # Scrollbar
         def on_scrollbar(*args: Any) -> None:
-            self.tree.yview(*args)  # type: ignore
+            self.tree.yview(*args)
 
         scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=on_scrollbar)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -220,7 +220,7 @@ class HighlightApp(tk.Tk):
             self.after(0, lambda: self.status_label.configure(text="Ready"))
             self.after(0, lambda: self.search_entry.focus_set())
 
-    def _update_results(self, results: List[Dict[str, Any]]):
+    def _update_results(self, results: list[dict[str, Any]]):
         """Update the results tree with search results"""
         for result in results:
             self.tree.insert(
@@ -244,8 +244,10 @@ class HighlightApp(tk.Tk):
         if selection:
             item = selection[0]
             values = self.tree.item(item)["values"]
-            url = values[3] if len(values) > 3 else values[2]
-            webbrowser.open_new_tab(url)
+            # values is a tuple of (platform, title, date, url) from Treeview
+            if isinstance(values, (list, tuple)) and len(values) > 3:
+                url = str(values[3])
+                webbrowser.open_new_tab(url)
 
 
 def main():

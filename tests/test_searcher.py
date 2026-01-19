@@ -3,7 +3,6 @@ Tests for HighlightSearcher
 """
 
 import unittest
-from typing import List
 
 try:
     from typing import TypedDict
@@ -24,13 +23,13 @@ class MockClient:
     """Mock client that returns predefined results"""
 
     def __init__(
-        self, name: str, results: List[HighlightResult], should_fail: bool = False
+        self, name: str, results: list[HighlightResult], should_fail: bool = False
     ):
         self.name = name
         self.results = results
         self.should_fail = should_fail
 
-    def search(self, query: str, max_results: int = 5) -> List[HighlightResult]:
+    def search(self, query: str, max_results: int = 5) -> list[HighlightResult]:
         if self.should_fail:
             raise Exception(f"{self.name} search failed")
         return self.results
@@ -45,7 +44,7 @@ class TestHighlightSearcher(unittest.TestCase):
 
     def test_single_client_success(self):
         """Test with one successful mock client"""
-        mock_results: List[HighlightResult] = [
+        mock_results: list[HighlightResult] = [
             {
                 "platform": "mock",
                 "title": "Test highlight",
@@ -61,10 +60,10 @@ class TestHighlightSearcher(unittest.TestCase):
 
     def test_multiple_clients(self):
         """Test aggregation from multiple clients"""
-        mock1_results: List[HighlightResult] = [
+        mock1_results: list[HighlightResult] = [
             {"platform": "m1", "title": "title1", "url": "url1", "score": 5}
         ]
-        mock2_results: List[HighlightResult] = [
+        mock2_results: list[HighlightResult] = [
             {"platform": "m2", "title": "title2", "url": "url2", "score": 10},
             {"platform": "m2", "title": "title3", "url": "url3", "score": 1},
         ]
@@ -80,7 +79,7 @@ class TestHighlightSearcher(unittest.TestCase):
 
     def test_client_failure(self):
         """Test handling of client failures"""
-        mock_success: List[HighlightResult] = [{"platform": "good", "score": 1}]
+        mock_success: list[HighlightResult] = [{"platform": "good", "score": 1}]
         mock_fail = MockClient("bad", [], should_fail=True)
         clients = {
             "good": MockClient("good", mock_success),
